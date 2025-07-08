@@ -19,19 +19,14 @@ A standalone TypeScript bot that automatically executes swap and settle operatio
 
 ## Installation
 
-1. Navigate to the bot directory:
+1. Install dependencies:
 ```bash
-cd bot
+pnpm install
 ```
 
-2. Install dependencies:
+2. Build the project:
 ```bash
-npm install
-```
-
-3. Build the project:
-```bash
-npm run build
+pnpm run build
 ```
 
 ## Configuration
@@ -49,9 +44,11 @@ NETWORK=devnet
 # Trading parameters
 INPUT_AMOUNT=1000
 MIN_OUT=100
+TOKEN_X_MINT=<TOKEN_X_MINT>
+TOKEN_Y_MINT=<TOKEN_Y_MINT>
 
 # Wallet configuration
-PRIVATE_KEY_BYTES=[47,2,175,...]
+PRIVATE_KEY_BYTES="[47,2,175,...]"
 
 # RPC configuration
 RPC_URL=https://api.devnet.solana.com
@@ -65,47 +62,29 @@ CRON_SCHEDULE=0 * * * * *
 # Generate a new keypair (optional)
 solana-keygen new --outfile key.json
 
-# Or copy an existing keypair
-cp /path/to/your/keypair.json key.json
-```
-
-4. Update token configurations in `src/swap-bot.ts`:
-```typescript
-const TOKEN_Y: Token = {
-    mint: new PublicKey('YOUR_TOKEN_Y_MINT_ADDRESS'),
-    programId: TOKEN_PROGRAM_ID,
-    name: 'TokenYYY',
-    symbol: 'TKY',
-};
-
-const TOKEN_X: Token = {
-    mint: new PublicKey('YOUR_TOKEN_X_MINT_ADDRESS'),
-    programId: TOKEN_2022_PROGRAM_ID,
-    name: 'TokenXXX',
-    symbol: 'TKX',
-};
+# Copy contents to the PRIVATE_KEY_BYTES="..."
 ```
 
 ## Usage
 
 ### Development Mode
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 ### Production Mode
 ```bash
-npm start
+pnpm start
 ```
 
 ### Build Only
 ```bash
-npm run build
+pnpm run build
 ```
 
 ## Cron Schedule Format
 
-The bot uses standard cron format: `* * * * *`
+The bot uses standard cron format: `* * * * *`. [cron](https://www.npmjs.com/package/cron)
 
 - First `*`: Minute (0-59)
 - Second `*`: Hour (0-23)
@@ -127,6 +106,8 @@ Examples:
 | `INPUT_AMOUNT` | Amount of token X to swap | `1000` |
 | `MIN_OUT` | Minimum amount of token Y to receive | `100` |
 | `PRIVATE_KEY_BYTES` | contents of the solana-keygen output | `[254,21,5,...]` |
+| `TOKEN_X_MINT` | Token x of the pool | `Public key...` |
+| `TOKEN_Y_MINT` | Token y of the pool | `Public key...` |
 | `RPC_URL` | Solana RPC endpoint | `https://api.devnet.solana.com` |
 | `CRON_SCHEDULE` | Cron schedule for bot execution | `* * * * *` |
 
