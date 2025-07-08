@@ -51,7 +51,7 @@ INPUT_AMOUNT=1000
 MIN_OUT=100
 
 # Wallet configuration
-PRIVATE_KEY_PATH=./key.json
+PRIVATE_KEY_BYTES=[47,2,175,...]
 
 # RPC configuration
 RPC_URL=https://api.devnet.solana.com
@@ -126,7 +126,7 @@ Examples:
 | `NETWORK` | Solana network (devnet, testnet, mainnet-beta) | `devnet` |
 | `INPUT_AMOUNT` | Amount of token X to swap | `1000` |
 | `MIN_OUT` | Minimum amount of token Y to receive | `100` |
-| `PRIVATE_KEY_PATH` | Path to private key JSON file | `./private-key.json` |
+| `PRIVATE_KEY_BYTES` | contents of the solana-keygen output | `[254,21,5,...]` |
 | `RPC_URL` | Solana RPC endpoint | `https://api.devnet.solana.com` |
 | `CRON_SCHEDULE` | Cron schedule for bot execution | `* * * * *` |
 

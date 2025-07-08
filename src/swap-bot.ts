@@ -64,44 +64,34 @@ export class SwapBot {
 
     constructor(
         config: BotConfig,
-        wallet: Wallet,
-        provider: AnchorProvider,
-        program: Program<DarklakeType>
     ) {
         this.config = config;
-        this.wallet = wallet;
-        this.provider = provider;
-        this.program = program;
-    }
+        console.log('Loading keypair...');
+        const privateKeyArray = JSON.parse(this.config.privateKeyBytes);
 
-    async initialize(): Promise<void> {
-        console.log('Initializing SwapBot...');
-        
-        // Load private key from file
-        const privateKeyData = fs.readFileSync(this.config.privateKeyPath, 'utf8');
-        const privateKeyArray = JSON.parse(privateKeyData);
         const keypair = Keypair.fromSecretKey(new Uint8Array(privateKeyArray));
+        console.log('Loaded keypair with public key:', keypair.publicKey.toBase58());
         
         // Create wallet
         this.wallet = new Wallet(keypair);
         
+        console.log('Loading connection...');
+
         // Create connection
         const connection = new web3.Connection(this.config.rpcUrl, 'confirmed');
+
+        console.log('RPC URL:', this.config.rpcUrl);
         
         // Create provider
         this.provider = new AnchorProvider(connection, this.wallet, {
             commitment: 'confirmed',
             preflightCommitment: 'confirmed',
-        });
-        
-        // Set provider
+        });   
+
         setProvider(this.provider);
-        
-        // Initialize program
+
+        console.log('Loading program...');
         this.program = getDarklakeProgram(this.provider);
-        
-        console.log('SwapBot initialized successfully');
-        console.log('Wallet address:', this.wallet.publicKey.toString());
     }
 
     /**
@@ -480,8 +470,7 @@ export class SwapBot {
 
             console.log('\n=== Trade Complete ===');
             console.log(
-                `Successfully traded ${this.config.inputAmount} 
-                ${isSwapXtoY ? TOKEN_X.symbol : TOKEN_Y.symbol} for ${output} ${isSwapXtoY ? TOKEN_Y.symbol : TOKEN_X.symbol}`,
+                `Successfully traded ${this.config.inputAmount} ${isSwapXtoY ? TOKEN_X.symbol : TOKEN_Y.symbol} for ${output} ${isSwapXtoY ? TOKEN_Y.symbol : TOKEN_X.symbol}`,
             );
         } catch (error) {
             console.error('Error during trade:', error);

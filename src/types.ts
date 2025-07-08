@@ -11,7 +11,7 @@ export interface BotConfig {
     network: string;
     inputAmount: number;
     minOut: number;
-    privateKeyPath: string;
+    privateKeyBytes: string;
     rpcUrl: string;
     cronSchedule: string;
 }
