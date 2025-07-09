@@ -1,24 +1,35 @@
-import { PublicKey } from '@solana/web3.js';
+export type Network = 'devnet' | 'mainnet';
 
-export interface Token {
-    mint: PublicKey;
-    programId: PublicKey;
-    name: string;
-    symbol: string;
-}
-
-export interface BotConfig {
-    network: string;
-    inputAmount: number;
-    minOut: number;
+export interface WalletEmulatorConfig {
     privateKeyBytes: string;
-    rpcUrl: string;
-    cronSchedule: string;
+    gatewaySwapUrl: string;
+    gatewaySignedTxUrl: string;
+    tokenX: string;
+    tokenY: string;
+    inputAmount: number;
+    slippage: number;
+    network: Network;
 }
 
-export interface ProofResult {
-    proofA: Uint8Array;
-    proofB: Uint8Array;
-    proofC: Uint8Array;
-    publicSignals: Uint8Array[];
-} 
+export interface SwapRequest {
+    user_address: string;
+    token_mint_x: string;
+    token_mint_y: string;
+    amount_in: number;
+    slippage: number;
+    network: Network;
+}
+
+export interface SwapResponse {
+    unsigned_transaction: string; // Base64 encoded transaction
+}
+
+export interface SignedTransactionRequest {
+    signed_transaction: string; // Base64 encoded signed transaction
+}
+
+export interface SignedTransactionResponse {
+    success: boolean;
+    message?: string;
+    txHash?: string;
+}

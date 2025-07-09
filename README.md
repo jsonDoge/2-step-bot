@@ -1,15 +1,15 @@
-# Darklake Swap Bot
+# Darklake Wallet Emulator
 
-A standalone TypeScript bot that automatically executes swap and settle operations on the Darklake DEX using cron scheduling.
+A simple TypeScript wallet emulator that executes a single swap operation on the Darklake DEX through a gateway API.
 
 ## Features
 
-- Automated swap and settle operations
-- Cron-based scheduling (runs every minute by default)
-- Private key loading from JSON file
-- Configurable trading parameters
-- Error handling and logging
-- Graceful shutdown handling
+- Load wallet from private key bytes
+- Make HTTP request to gateway for unsigned transaction
+- Sign transaction with loaded wallet
+- Submit signed transaction to gateway
+- Single execution with automatic exit
+- Support for devnet and mainnet networks
 
 ## Prerequisites
 
@@ -31,38 +31,29 @@ pnpm run build
 
 ## Configuration
 
-1. Copy the example environment file:
-```bash
-cp env.example .env
-```
-
-2. Edit the `.env` file with your configuration:
+1. Create a `.env` file with your configuration:
 ```env
-# Network configuration
-NETWORK=devnet
+# Wallet Configuration
+PRIVATE_KEY_BYTES="[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32]"
 
-# Trading parameters
+# Gateway URLs
+GATEWAY_SWAP_URL="https://your-gateway.com/api/swap"
+GATEWAY_SIGNED_TX_URL="https://your-gateway.com/api/submit-signed-tx"
+
+# Swap Parameters
+TOKEN_X_MINT="So11111111111111111111111111111111111111112"  # SOL
+TOKEN_Y_MINT="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"  # USDC
 INPUT_AMOUNT=1000
-MIN_OUT=100
-TOKEN_X_MINT=<TOKEN_X_MINT>
-TOKEN_Y_MINT=<TOKEN_Y_MINT>
-
-# Wallet configuration
-PRIVATE_KEY_BYTES="[47,2,175,...]"
-
-# RPC configuration
-RPC_URL=https://api.devnet.solana.com
-
-# Cron schedule (every minute by default)
-CRON_SCHEDULE=0 * * * * *
+SLIPPAGE=100 # % 
+NETWORK=devnet
 ```
 
-3. Create a private key file:
+2. Create a private key:
 ```bash
 # Generate a new keypair (optional)
 solana-keygen new --outfile key.json
 
-# Copy contents to the PRIVATE_KEY_BYTES="..."
+# Copy the array of bytes to PRIVATE_KEY_BYTES
 ```
 
 ## Usage
@@ -82,78 +73,102 @@ pnpm start
 pnpm run build
 ```
 
-## Cron Schedule Format
+## How It Works
 
-The bot uses standard cron format: `* * * * *`. [cron](https://www.npmjs.com/package/cron)
-
-- First `*`: Minute (0-59)
-- Second `*`: Hour (0-23)
-- Third `*`: Day of month (1-31)
-- Fourth `*`: Month (1-12)
-- Fifth `*`: Day of week (0-7, where 0 and 7 are Sunday)
-
-Examples:
-- `* * * * *` - Every minute
-- `*/5 * * * *` - Every 5 minutes
-- `0 */2 * * *` - Every 2 hours
-- `0 9 * * *` - Every day at 9 AM
+1. **Load Wallet**: The emulator loads a Solana keypair from the `PRIVATE_KEY_BYTES` environment variable
+2. **Request Swap**: Makes an HTTP POST request to `GATEWAY_SWAP_URL` with swap parameters
+3. **Receive Transaction**: Gets an unsigned Solana transaction from the gateway response
+4. **Sign Transaction**: Signs the transaction using the loaded wallet
+5. **Submit Transaction**: Sends the signed transaction to `GATEWAY_SIGNED_TX_URL`
+6. **Exit**: The program exits after completion
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `NETWORK` | Solana network (devnet, testnet, mainnet-beta) | `devnet` |
-| `INPUT_AMOUNT` | Amount of token X to swap | `1000` |
-| `MIN_OUT` | Minimum amount of token Y to receive | `100` |
-| `PRIVATE_KEY_BYTES` | contents of the solana-keygen output | `[254,21,5,...]` |
-| `TOKEN_X_MINT` | Token x of the pool | `Public key...` |
-| `TOKEN_Y_MINT` | Token y of the pool | `Public key...` |
-| `RPC_URL` | Solana RPC endpoint | `https://api.devnet.solana.com` |
-| `CRON_SCHEDULE` | Cron schedule for bot execution | `* * * * *` |
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| `PRIVATE_KEY_BYTES` | JSON array of private key bytes | Yes | - |
+| `GATEWAY_SWAP_URL` | Gateway endpoint for swap requests | Yes | - |
+| `GATEWAY_SIGNED_TX_URL` | Gateway endpoint for submitting signed transactions | Yes | - |
+| `TOKEN_X_MINT` | Token X mint address | Yes | - |
+| `TOKEN_Y_MINT` | Token Y mint address | Yes | - |
+| `INPUT_AMOUNT` | Amount of token X to swap | Yes | 1000 |
+| `SLIPPAGE` | Slippage tolerance in basis points | Yes | 100 |
+| `NETWORK` | Solana network (devnet, mainnet) | Yes | devnet |
+
+## API Interface
+
+### Swap Request (POST to GATEWAY_SWAP_URL)
+```json
+{
+  "user_address": "string",
+  "token_mint_x": "string",
+  "token_mint_y": "string", 
+  "amount_in": "number",
+  "slippage": "number",
+  "network": "devnet" | "mainnet"
+}
+```
+
+### Swap Response
+```json
+{
+  "unsigned_transaction": "base64-encoded-transaction"
+}
+```
+
+### Signed Transaction Request (POST to GATEWAY_SIGNED_TX_URL)
+```json
+{
+  "signed_transaction": "base64-encoded-signed-transaction"
+}
+```
+
+### Signed Transaction Response
+```json
+{
+  "success": "boolean",
+  "message": "string",
+  "txHash": "string"
+}
+```
 
 ## Project Structure
 
 ```
-bot/
+gateway-wallet/
 ├── src/
 │   ├── index.ts          # Main entry point
-│   ├── swap-bot.ts       # Core bot logic
-│   ├── darklake.ts       # Darklake program interface
-│   ├── proof.ts          # Zero-knowledge proof generation
-│   ├── types.ts          # TypeScript type definitions
-│   ├── utils.ts          # Utility functions
-│   └── darklake.json     # Program IDL
-├── settle-circuits/      # Zero-knowledge proof circuits
-├── snarkjs/             # SNARK proof generation library
+│   └── types.ts          # TypeScript type definitions
 ├── package.json
 ├── tsconfig.json
-├── env.example
 └── README.md
 ```
 
 ## Security Notes
 
-- Keep your private key file secure and never commit it to version control
+- Keep your private key secure and never commit it to version control
 - Use environment variables for sensitive configuration
-- Consider using a dedicated wallet for bot operations
-- Monitor bot activity regularly
+- Consider using a dedicated wallet for testing operations
+- Verify gateway URLs before use
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Private key not found**: Ensure the private key file exists and is readable
-2. **RPC connection failed**: Check your RPC URL and network connectivity
-3. **Insufficient funds**: Ensure your wallet has enough SOL for transaction fees
-4. **Token accounts not found**: The bot will automatically create associated token accounts
+1. **Private key format error**: Ensure `PRIVATE_KEY_BYTES` is a valid JSON array of numbers
+2. **Gateway connection failed**: Check your gateway URLs and network connectivity
+3. **Transaction signing failed**: Verify the private key is correct and has sufficient funds
+4. **Invalid response format**: Check that the gateway returns the expected JSON structure
+5. **Network mismatch**: Ensure the `NETWORK` parameter matches your gateway configuration
 
 ### Logs
 
-The bot provides detailed logging for debugging:
-- Initialization logs
-- Transaction execution logs
-- Error logs with stack traces
-- Timestamped trade execution logs
+The emulator provides detailed logging:
+- Wallet loading confirmation
+- Request parameters
+- Transaction signing status
+- Gateway response details
+- Success/failure status
 
 ## License
 
