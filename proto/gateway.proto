@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package gateway_solana;
+
+import "google/protobuf/any.proto";
+import "buf/validate/validate.proto";
+
+enum Network {
+    MAINNET_BETA = 0;
+    TESTNET      = 1;
+    DEVNET       = 2;
+}
+
+// --------------------------------- MESSAGES
+
+message CreateUnsignedTransactionRequest {
+    string user_address = 1 [
+        (buf.validate.field).required = true,
+        (buf.validate.field).cel      = {
+            expression: "this.matches('^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$')",
+            message: "must be a valid Base64 encoded string"
+        }
+    ];
+    string token_mint_x = 2 [
+        (buf.validate.field).required = true,
+        (buf.validate.field).cel      = {
+            expression: "this.matches('^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$')",
+            message: "must be a valid Base64 encoded string"
+        }
+    ];
+    string token_mint_y = 3 [
+        (buf.validate.field).required = true,
+        (buf.validate.field).cel      = {
+            expression: "this.matches('^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$')",
+            message: "must be a valid Base64 encoded string"
+        }
+    ];
+    uint64 amount_in = 4 [(buf.validate.field).required = true];
+    uint64 slippage  = 5 [
+        (buf.validate.field).required  = true,
+        (buf.validate.field).float.gt  = 0,
+        (buf.validate.field).float.lte = 100
+    ];
+    string tracking_id = 6 [(buf.validate.field).required = false];
+    Network network    = 7 [(buf.validate.field).required = true];
+}
+
+message CreateUnsignedTransactionResponse {
+    // Base64 encoded transaction
+    string unsigned_transaction = 1;
+    // Base64 encoded poseidon hash
+    string hash = 2;
+    // Base64 encoded transaction id
+    string transaction_id = 3;
+    // Calculated amount the user will pay
+    uint64 amount_out = 4;
+}
+
+// --------------------------------- SERVICES
+
+service SolanaGatewayService {
+    rpc CreateUnsignedTransaction(CreateUnsignedTransactionRequest)
+        returns (CreateUnsignedTransactionResponse);
+    
+    // rpc SubmitSignedTransaction()
+}

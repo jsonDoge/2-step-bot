@@ -1,7 +1,9 @@
 import * as dotenv from 'dotenv';
 import { Keypair, Transaction } from '@solana/web3.js';
-import fetch from 'node-fetch';
-import { WalletEmulatorConfig, SwapRequest, SwapResponse, SignedTransactionRequest, SignedTransactionResponse, Network } from './types';
+import * as grpc from '@grpc/grpc-js';
+import * as protoLoader from '@grpc/proto-loader';
+import { WalletEmulatorConfig, SwapRequest, SwapResponse, SignedTransactionRequest, SignedTransactionResponse, Network, GrpcClient } from './types';
+import * as path from 'path';
 
 // Load environment variables
 dotenv.config();
@@ -9,8 +11,8 @@ dotenv.config();
 // Configuration
 const config: WalletEmulatorConfig = {
     privateKeyBytes: process.env.PRIVATE_KEY_BYTES || '',
-    gatewaySwapUrl: process.env.GATEWAY_SWAP_URL || '',
-    gatewaySignedTxUrl: process.env.GATEWAY_SIGNED_TX_URL || '',
+    gatewayHost: process.env.GATEWAY_HOST || 'localhost',
+    gatewayPort: parseInt(process.env.GATEWAY_PORT || '50051'),
     tokenX: process.env.TOKEN_X_MINT || '',
     tokenY: process.env.TOKEN_Y_MINT || '',
     inputAmount: parseInt(process.env.INPUT_AMOUNT || '1000'),
@@ -18,25 +20,50 @@ const config: WalletEmulatorConfig = {
     network: process.env.NETWORK as Network || 'devnet',
 };
 
-async function makeHttpRequest<T>(url: string, method: 'GET' | 'POST', data?: any): Promise<T> {
-    const options = {
-        method,
-        headers: {
-            'Content-Type': 'application/json',
+// Load gRPC proto file
+const PROTO_PATH = path.resolve(__dirname, '../proto/gateway.proto');
+
+const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+    keepCase: true,
+    longs: String,
+    enums: String,
+    defaults: true,
+    oneofs: true,
+});
+
+const gatewayProto = grpc.loadPackageDefinition(packageDefinition) as any;
+
+// Create gRPC client
+function createGrpcClient(): GrpcClient {
+    const client = new gatewayProto.gateway.GatewayService(
+        `${config.gatewayHost}:${config.gatewayPort}`,
+        grpc.credentials.createInsecure()
+    );
+
+    return {
+        swap: (request: SwapRequest): Promise<SwapResponse> => {
+            return new Promise((resolve, reject) => {
+                client.swap(request, (error: any, response: SwapResponse) => {
+                    if (error) {
+                        reject(error);
+                    } else {
+                        resolve(response);
+                    }
+                });
+            });
         },
-    } as any;
-
-    if (data) {
-        options.body = JSON.stringify(data);
-    }
-
-    const response = await fetch(url, options);
-    
-    if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}, message: ${response.statusText}`);
-    }
-
-    return response.json() as Promise<T>;
+        submitSignedTransaction: (request: SignedTransactionRequest): Promise<SignedTransactionResponse> => {
+            return new Promise((resolve, reject) => {
+                client.submitSignedTransaction(request, (error: any, response: SignedTransactionResponse) => {
+                    if (error) {
+                        reject(error);
+                    } else {
+                        resolve(response);
+                    }
+                });
+            });
+        }
+    };
 }
 
 async function executeWalletSwap(): Promise<void> {
@@ -51,6 +78,10 @@ async function executeWalletSwap(): Promise<void> {
         
         console.log('Wallet loaded with public key:', walletPublicKey);
         
+        // Create gRPC client
+        console.log('Connecting to gRPC gateway...');
+        const grpcClient = createGrpcClient();
+        
         // Prepare swap request
         const swapRequest: SwapRequest = {
             user_address: walletPublicKey,
@@ -64,12 +95,8 @@ async function executeWalletSwap(): Promise<void> {
         console.log('Making swap request to gateway...');
         console.log('Request parameters:', swapRequest);
         
-        // Make HTTP request to get unsigned transaction
-        const swapResponse: SwapResponse = await makeHttpRequest<SwapResponse>(
-            config.gatewaySwapUrl,
-            'POST',
-            swapRequest
-        );
+        // Make gRPC request to get unsigned transaction
+        const swapResponse: SwapResponse = await grpcClient.swap(swapRequest);
         
         console.log('Received unsigned transaction from gateway');
         
@@ -96,11 +123,7 @@ async function executeWalletSwap(): Promise<void> {
         console.log('Submitting signed transaction to gateway...');
         
         // Submit signed transaction
-        const signedTxResponse: SignedTransactionResponse = await makeHttpRequest<SignedTransactionResponse>(
-            config.gatewaySignedTxUrl,
-            'POST',
-            signedTxRequest
-        );
+        const signedTxResponse: SignedTransactionResponse = await grpcClient.submitSignedTransaction(signedTxRequest);
         
         console.log('Transaction submitted successfully!');
         console.log('Response:', signedTxResponse);
@@ -124,8 +147,8 @@ async function executeWalletSwap(): Promise<void> {
 async function main() {
     console.log('🚀 Darklake Wallet Emulator');
     console.log('Configuration:', {
-        gatewaySwapUrl: config.gatewaySwapUrl,
-        gatewaySignedTxUrl: config.gatewaySignedTxUrl,
+        gatewayHost: config.gatewayHost,
+        gatewayPort: config.gatewayPort,
         tokenX: config.tokenX,
         tokenY: config.tokenY,
         inputAmount: config.inputAmount,

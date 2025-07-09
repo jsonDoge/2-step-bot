@@ -2,13 +2,19 @@ export type Network = 'devnet' | 'mainnet';
 
 export interface WalletEmulatorConfig {
     privateKeyBytes: string;
-    gatewaySwapUrl: string;
-    gatewaySignedTxUrl: string;
+    gatewayHost: string;
+    gatewayPort: number;
     tokenX: string;
     tokenY: string;
     inputAmount: number;
     slippage: number;
     network: Network;
+}
+
+// gRPC client types
+export interface GrpcClient {
+    swap: (request: SwapRequest) => Promise<SwapResponse>;
+    submitSignedTransaction: (request: SignedTransactionRequest) => Promise<SignedTransactionResponse>;
 }
 
 export interface SwapRequest {
