@@ -16,8 +16,8 @@ const config: WalletEmulatorConfig = {
     tokenX: process.env.TOKEN_X_MINT || '',
     tokenY: process.env.TOKEN_Y_MINT || '',
     inputAmount: parseInt(process.env.INPUT_AMOUNT || '1000'),
-    slippage: parseInt(process.env.SLIPPAGE || '100'),
-    network: process.env.NETWORK as Network || 'devnet',
+    minOut: parseInt(process.env.MIN_OUT || '0'),
+    network: parseInt(process.env.NETWORK || Network.DEVNET.toString(), 10),
 };
 
 // Load gRPC proto file
@@ -35,7 +35,9 @@ const gatewayProto = grpc.loadPackageDefinition(packageDefinition) as any;
 
 // Create gRPC client
 function createGrpcClient(): GrpcClient {
-    const client = new gatewayProto.gateway.GatewayService(
+    const { gateway_solana } = gatewayProto;
+
+    const client = new gateway_solana.SolanaGatewayService(
         `${config.gatewayHost}:${config.gatewayPort}`,
         grpc.credentials.createInsecure()
     );
@@ -43,7 +45,7 @@ function createGrpcClient(): GrpcClient {
     return {
         swap: (request: SwapRequest): Promise<SwapResponse> => {
             return new Promise((resolve, reject) => {
-                client.swap(request, (error: any, response: SwapResponse) => {
+                client.CreateUnsignedTransaction(request, (error: any, response: SwapResponse) => {
                     if (error) {
                         reject(error);
                     } else {
@@ -54,7 +56,7 @@ function createGrpcClient(): GrpcClient {
         },
         submitSignedTransaction: (request: SignedTransactionRequest): Promise<SignedTransactionResponse> => {
             return new Promise((resolve, reject) => {
-                client.submitSignedTransaction(request, (error: any, response: SignedTransactionResponse) => {
+                client.SendSignedTransaction(request, (error: any, response: SignedTransactionResponse) => {
                     if (error) {
                         reject(error);
                     } else {
@@ -88,8 +90,9 @@ async function executeWalletSwap(): Promise<void> {
             token_mint_x: config.tokenX,
             token_mint_y: config.tokenY,
             amount_in: config.inputAmount,
-            slippage: config.slippage,
-            network: config.network,
+            min_out: config.minOut,
+            is_swap_x_to_y: true,
+            network: Network.DEVNET // config.network,
         };
         
         console.log('Making swap request to gateway...');
@@ -106,9 +109,14 @@ async function executeWalletSwap(): Promise<void> {
         
         console.log('Signing transaction...');
         
-        // Create transaction from buffer and sign it
-        const transaction = Transaction.from(unsignedTransactionBuffer);
+        
+        // Parse the JSON string from the buffer
+        const transactionJson = unsignedTransactionBuffer;
+
+        // Create transaction from the parsed JSON object
+        const transaction = Transaction.from(transactionJson);
         transaction.sign(keypair);
+
         
         // Serialize the signed transaction
         const signedTransactionBase64 = transaction.serialize().toString('base64');
@@ -118,23 +126,22 @@ async function executeWalletSwap(): Promise<void> {
         // Prepare signed transaction request
         const signedTxRequest: SignedTransactionRequest = {
             signed_transaction: signedTransactionBase64,
+            order_id: swapResponse.order_id,
         };
-        
+        // Send the signed transaction to the Solana network
+        console.log('Sending signed transaction to Solana network...');
+
+
         console.log('Submitting signed transaction to gateway...');
         
         // Submit signed transaction
         const signedTxResponse: SignedTransactionResponse = await grpcClient.submitSignedTransaction(signedTxRequest);
         
-        console.log('Transaction submitted successfully!');
-        console.log('Response:', signedTxResponse);
         
         if (signedTxResponse.success) {
             console.log('✅ Swap completed successfully!');
-            if (signedTxResponse.txHash) {
-                console.log('Transaction hash:', signedTxResponse.txHash);
-            }
         } else {
-            console.log('❌ Swap failed:', signedTxResponse.message);
+            console.log('❌ Swap failed:', signedTxResponse);
         }
         
     } catch (error) {
@@ -152,7 +159,7 @@ async function main() {
         tokenX: config.tokenX,
         tokenY: config.tokenY,
         inputAmount: config.inputAmount,
-        slippage: config.slippage,
+        minOut: config.minOut,
         network: config.network
     });
     

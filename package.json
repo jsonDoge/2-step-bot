@@ -1,7 +1,7 @@
 {
-  "name": "darklake-swap-bot",
+  "name": "darklake-gateway-wallet",
   "version": "1.0.0",
-  "description": "Standalone bot for running swap and settle operations on Darklake DEX",
+  "description": "Wallet emulator to test gateway",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",

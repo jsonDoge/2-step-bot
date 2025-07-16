@@ -2,8 +2,9 @@ syntax = "proto3";
 
 package gateway_solana;
 
-import "google/protobuf/any.proto";
 import "buf/validate/validate.proto";
+
+// --------------------------------- ENUMS
 
 enum Network {
     MAINNET_BETA = 0;
@@ -36,24 +37,31 @@ message CreateUnsignedTransactionRequest {
         }
     ];
     uint64 amount_in = 4 [(buf.validate.field).required = true];
-    uint64 slippage  = 5 [
+    uint64 min_out  = 5 [
         (buf.validate.field).required  = true,
         (buf.validate.field).float.gt  = 0,
         (buf.validate.field).float.lte = 100
     ];
     string tracking_id = 6 [(buf.validate.field).required = false];
     Network network    = 7 [(buf.validate.field).required = true];
+    bool is_swap_x_to_y = 8 [(buf.validate.field).required = true];
 }
 
 message CreateUnsignedTransactionResponse {
     // Base64 encoded transaction
     string unsigned_transaction = 1;
-    // Base64 encoded poseidon hash
-    string hash = 2;
-    // Base64 encoded transaction id
-    string transaction_id = 3;
-    // Calculated amount the user will pay
-    uint64 amount_out = 4;
+    string order_id = 2;
+    // TODO: DAR-488 discuss necessary return values
+}
+
+message SendSignedTransactionRequest {
+    string signed_transaction = 1;
+    string order_id = 2;
+}
+
+message SendSignedTransactionResponse {
+    bool success = 1;
+    // TODO: DAR-488 discuss necessary return values
 }
 
 // --------------------------------- SERVICES
@@ -61,6 +69,7 @@ message CreateUnsignedTransactionResponse {
 service SolanaGatewayService {
     rpc CreateUnsignedTransaction(CreateUnsignedTransactionRequest)
         returns (CreateUnsignedTransactionResponse);
-    
-    // rpc SubmitSignedTransaction()
+
+    rpc SendSignedTransaction(SendSignedTransactionRequest)
+        returns (SendSignedTransactionResponse);
 }

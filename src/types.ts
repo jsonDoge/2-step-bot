@@ -1,4 +1,8 @@
-export type Network = 'devnet' | 'mainnet';
+export enum Network {
+    DEVNET = 2,
+    MAINNET = 0,
+    TESTNET = 1,
+};
 
 export interface WalletEmulatorConfig {
     privateKeyBytes: string;
@@ -7,7 +11,7 @@ export interface WalletEmulatorConfig {
     tokenX: string;
     tokenY: string;
     inputAmount: number;
-    slippage: number;
+    minOut: number;
     network: Network;
 }
 
@@ -22,20 +26,22 @@ export interface SwapRequest {
     token_mint_x: string;
     token_mint_y: string;
     amount_in: number;
-    slippage: number;
+    min_out: number;
+    is_swap_x_to_y: boolean;
+    // network: Network;
     network: Network;
 }
 
 export interface SwapResponse {
     unsigned_transaction: string; // Base64 encoded transaction
+    order_id: string;
 }
 
 export interface SignedTransactionRequest {
     signed_transaction: string; // Base64 encoded signed transaction
+    order_id: string;  
 }
 
 export interface SignedTransactionResponse {
     success: boolean;
-    message?: string;
-    txHash?: string;
 }

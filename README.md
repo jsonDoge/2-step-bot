@@ -46,8 +46,8 @@ GATEWAY_PORT=50051
 TOKEN_X_MINT="So11111111111111111111111111111111111111112"  # SOL
 TOKEN_Y_MINT="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"  # USDC
 INPUT_AMOUNT=1000
-SLIPPAGE=100
-NETWORK=devnet
+MIN_OUT=0
+NETWORK=2
 ```
 
 2. Create a private key:
@@ -95,53 +95,55 @@ pnpm run build
 | `TOKEN_X_MINT` | Token X mint address | Yes | - |
 | `TOKEN_Y_MINT` | Token Y mint address | Yes | - |
 | `INPUT_AMOUNT` | Amount of token X to swap | Yes | 1000 |
-| `SLIPPAGE` | Slippage tolerance in basis points | Yes | 100 |
-| `NETWORK` | Solana network (devnet, mainnet) | Yes | devnet |
+| `MIN_OUT` | Minimum output amount | Yes | 0 |
+| `NETWORK` | Solana network (0=mainnet, 1=testnet, 2=devnet) | Yes | 2 |
 
 ## gRPC Service Interface
 
 The emulator expects a gRPC server implementing the following service (defined in `proto/gateway.proto`):
 
-### GatewayService
+### SolanaGatewayService
 ```protobuf
-service GatewayService {
-  rpc Swap(SwapRequest) returns (SwapResponse);
-  rpc SubmitSignedTransaction(SignedTransactionRequest) returns (SignedTransactionResponse);
+service SolanaGatewayService {
+  rpc CreateUnsignedTransaction(CreateUnsignedTransactionRequest) returns (CreateUnsignedTransactionResponse);
+  rpc SendSignedTransaction(SendSignedTransactionRequest) returns (SendSignedTransactionResponse);
 }
 ```
 
-### SwapRequest
+### CreateUnsignedTransactionRequest
 ```protobuf
-message SwapRequest {
+message CreateUnsignedTransactionRequest {
   string user_address = 1;
   string token_mint_x = 2;
   string token_mint_y = 3;
   uint64 amount_in = 4;
-  uint32 slippage = 5;
-  string network = 6;
+  uint64 min_out = 5;
+  string tracking_id = 6;
+  Network network = 7;
+  bool is_swap_x_to_y = 8;
 }
 ```
 
-### SwapResponse
+### CreateUnsignedTransactionResponse
 ```protobuf
-message SwapResponse {
+message CreateUnsignedTransactionResponse {
   string unsigned_transaction = 1; // Base64 encoded transaction
+  string order_id = 2;
 }
 ```
 
-### SignedTransactionRequest
+### SendSignedTransactionRequest
 ```protobuf
-message SignedTransactionRequest {
+message SendSignedTransactionRequest {
   string signed_transaction = 1; // Base64 encoded signed transaction
+  string order_id = 2;
 }
 ```
 
-### SignedTransactionResponse
+### SendSignedTransactionResponse
 ```protobuf
-message SignedTransactionResponse {
+message SendSignedTransactionResponse {
   bool success = 1;
-  string message = 2;
-  string tx_hash = 3;
 }
 ```
 
@@ -151,23 +153,16 @@ message SignedTransactionResponse {
 gateway-wallet/
 ├── src/
 │   ├── index.ts          # Main entry point
-│   ├── darklake.ts       # Darklake program interface
-│   ├── types.ts          # TypeScript type definitions
-│   ├── utils.ts          # Utility functions
-│   └── darklake-idl.json # Program IDL
+│   └── types.ts          # TypeScript type definitions
 ├── proto/
-│   └── gateway.proto     # gRPC service definition
+│   ├── gateway.proto     # gRPC service definition
+│   └── buf/
+│       └── validate/
+│           └── validate.proto
 ├── package.json
 ├── tsconfig.json
 └── README.md
 ```
-
-## Dependencies
-
-- **@grpc/grpc-js**: Modern gRPC implementation for Node.js
-- **@grpc/proto-loader**: Dynamic proto loading for gRPC services
-- **@solana/web3.js**: Solana blockchain interaction
-- **dotenv**: Environment variable management
 
 ## Security Notes
 
@@ -175,7 +170,6 @@ gateway-wallet/
 - Use environment variables for sensitive configuration
 - Consider using a dedicated wallet for testing operations
 - Verify gRPC server endpoints before use
-- Use TLS/SSL for production gRPC connections
 
 ## Troubleshooting
 
@@ -187,16 +181,6 @@ gateway-wallet/
 4. **Invalid response format**: Check that the gRPC server returns the expected message structure
 5. **Network mismatch**: Ensure the `NETWORK` parameter matches your gateway configuration
 6. **Proto file not found**: Ensure `proto/gateway.proto` exists and is accessible
-
-### Logs
-
-The emulator provides detailed logging:
-- Wallet loading confirmation
-- gRPC connection status
-- Request parameters
-- Transaction signing status
-- Gateway response details
-- Success/failure status
 
 ## License
 
