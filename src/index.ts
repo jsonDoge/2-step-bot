@@ -1,89 +1,182 @@
-import * as cron from 'cron';
 import * as dotenv from 'dotenv';
-import { SwapBot } from './swap-bot';
-import { BotConfig } from './types';
+import { Keypair, Transaction } from '@solana/web3.js';
+import * as grpc from '@grpc/grpc-js';
+import * as protoLoader from '@grpc/proto-loader';
+import { WalletEmulatorConfig, SwapRequest, SwapResponse, SignedTransactionRequest, SignedTransactionResponse, Network, GrpcClient } from './types';
+import * as path from 'path';
 
 // Load environment variables
 dotenv.config();
 
-console.log('Loading config...');
-
-// Bot configuration
-const config: BotConfig = {
-    network: process.env.NETWORK || 'devnet',
-    inputAmount: parseInt(process.env.INPUT_AMOUNT || '1000'),
-    minOut: parseInt(process.env.MIN_OUT || '100'),
+// Configuration
+const config: WalletEmulatorConfig = {
     privateKeyBytes: process.env.PRIVATE_KEY_BYTES || '',
-    rpcUrl: process.env.RPC_URL || 'https://api.devnet.solana.com',
-    cronSchedule: process.env.CRON_SCHEDULE || '* * * * *', // Every minute by default
+    gatewayHost: process.env.GATEWAY_HOST || 'localhost',
+    gatewayPort: parseInt(process.env.GATEWAY_PORT || '50051'),
+    tokenX: process.env.TOKEN_X_MINT || '',
+    tokenY: process.env.TOKEN_Y_MINT || '',
+    inputAmount: parseInt(process.env.INPUT_AMOUNT || '1000'),
+    minOut: parseInt(process.env.MIN_OUT || '0'),
+    network: parseInt(process.env.NETWORK || Network.DEVNET.toString(), 10),
+    trackingId: "id" + Math.random().toString(16).slice(2),
 };
 
+// Load gRPC proto file
+const PROTO_PATH = path.resolve(__dirname, '../proto/gateway.proto');
 
-console.log('Creating bot instance...');
-// Create bot instance
-const bot = new SwapBot(config);
+const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+    keepCase: true,
+    longs: String,
+    enums: String,
+    defaults: true,
+    oneofs: true,
+});
 
-// State to track the parameter value
-let isSwapXtoY = false;
+const gatewayProto = grpc.loadPackageDefinition(packageDefinition) as any;
 
+// Create gRPC client
+function createGrpcClient(): GrpcClient {
+    const { gateway_solana } = gatewayProto;
 
-// Execute trade function
-async function executeTrade() {
+    const client = new gateway_solana.SolanaGatewayService(
+        `${config.gatewayHost}:${config.gatewayPort}`,
+        grpc.credentials.createInsecure()
+    );
+
+    return {
+        swap: (request: SwapRequest): Promise<SwapResponse> => {
+            return new Promise((resolve, reject) => {
+                client.CreateUnsignedTransaction(request, (error: any, response: SwapResponse) => {
+                    if (error) {
+                        reject(error);
+                    } else {
+                        resolve(response);
+                    }
+                });
+            });
+        },
+        submitSignedTransaction: (request: SignedTransactionRequest): Promise<SignedTransactionResponse> => {
+            return new Promise((resolve, reject) => {
+                client.SendSignedTransaction(request, (error: any, response: SignedTransactionResponse) => {
+                    if (error) {
+                        reject(error);
+                    } else {
+                        resolve(response);
+                    }
+                });
+            });
+        }
+    };
+}
+
+async function executeWalletSwap(): Promise<void> {
     try {
-        console.log(`\n[${new Date().toISOString()}] Starting scheduled trade with isSwapXtoY: ${isSwapXtoY}...`);
-        await bot.executeTrade(isSwapXtoY);
-        console.log(`[${new Date().toISOString()}] Trade completed successfully`);
+        console.log('Starting wallet emulator...');
         
-        // Toggle the parameter for next execution
-        isSwapXtoY = !isSwapXtoY;
+        // Load wallet from private key bytes
+        console.log('Loading wallet from private key...');
+        const privateKeyArray = JSON.parse(config.privateKeyBytes);
+        const keypair = Keypair.fromSecretKey(new Uint8Array(privateKeyArray));
+        const walletPublicKey = keypair.publicKey.toBase58();
+        
+        console.log('Wallet loaded with public key:', walletPublicKey);
+        
+        // Create gRPC client
+        console.log('Connecting to gRPC gateway...');
+        const grpcClient = createGrpcClient();
+        
+        // Prepare swap request
+        const swapRequest: SwapRequest = {
+            user_address: walletPublicKey,
+            token_mint_x: config.tokenX,
+            token_mint_y: config.tokenY,
+            amount_in: config.inputAmount,
+            min_out: config.minOut,
+            is_swap_x_to_y: true,
+            network: Network.DEVNET, // config.network,
+            tracking_id: config.trackingId,
+        };
+        
+        console.log('Making swap request to gateway...');
+        console.log('Request parameters:', swapRequest);
+        
+        // Make gRPC request to get unsigned transaction
+        const swapResponse: SwapResponse = await grpcClient.swap(swapRequest);
+        
+        console.log('Received unsigned transaction from gateway');
+        
+        // Decode and load the unsigned transaction
+        // EXPECTS: { unsignedTransaction: string }; // Base64 encoded transaction
+        const unsignedTransactionBuffer = Buffer.from(swapResponse.unsigned_transaction, 'base64');
+        
+        console.log('Signing transaction...');
+        
+        
+        // Parse the JSON string from the buffer
+        const transactionJson = unsignedTransactionBuffer;
+
+        // Create transaction from the parsed JSON object
+        const transaction = Transaction.from(transactionJson);
+        transaction.sign(keypair);
+
+        
+        // Serialize the signed transaction
+        const signedTransactionBase64 = transaction.serialize().toString('base64');
+        
+        console.log('Transaction signed successfully');
+        
+        // Prepare signed transaction request
+        const signedTxRequest: SignedTransactionRequest = {
+            signed_transaction: signedTransactionBase64,
+            order_id: swapResponse.order_id,
+        };
+        // Send the signed transaction to the Solana network
+        console.log('Sending signed transaction to Solana network...');
+
+
+        console.log('Submitting signed transaction to gateway...');
+        
+        // Submit signed transaction
+        const signedTxResponse: SignedTransactionResponse = await grpcClient.submitSignedTransaction(signedTxRequest);
+        
+        
+        if (signedTxResponse.success) {
+            console.log('✅ Swap completed successfully!');
+        } else {
+            console.log('❌ Swap failed:', signedTxResponse);
+        }
+        
     } catch (error) {
-        console.error(`[${new Date().toISOString()}] Trade failed:`, error);
+        console.error('❌ Error during wallet swap:', error);
+        throw error;
     }
 }
 
 // Main function
 async function main() {
-    console.log('Starting Darklake Swap Bot...');
+    console.log('🚀 Darklake Wallet Emulator');
     console.log('Configuration:', {
-        network: config.network,
+        gatewayHost: config.gatewayHost,
+        gatewayPort: config.gatewayPort,
+        tokenX: config.tokenX,
+        tokenY: config.tokenY,
         inputAmount: config.inputAmount,
         minOut: config.minOut,
-        rpcUrl: config.rpcUrl,
-        cronSchedule: config.cronSchedule,
+        network: config.network
     });
-
-    // Create cron job
-    const cronJob = new cron.CronJob(
-        config.cronSchedule,
-        executeTrade,
-        null,
-        false, // Don't start immediately
-        'UTC'
-    );
-
-    // Start the cron job
-    cronJob.start();
-    console.log(`Cron job started with schedule: ${config.cronSchedule}`);
-
-    // Handle graceful shutdown
-    process.on('SIGINT', () => {
-        console.log('\nReceived SIGINT, shutting down gracefully...');
-        cronJob.stop();
-        process.exit(0);
-    });
-
-    process.on('SIGTERM', () => {
-        console.log('\nReceived SIGTERM, shutting down gracefully...');
-        cronJob.stop();
-        process.exit(0);
-    });
-
-    // Keep the process alive
-    console.log('Bot is running. Press Ctrl+C to stop.');
+    
+    try {
+        await executeWalletSwap();
+        console.log('✅ Wallet emulator completed successfully');
+    } catch (error) {
+        console.error('❌ Wallet emulator failed:', error);
+        process.exit(1);
+    }
+    
+    // Exit the program
+    console.log('👋 Exiting...');
+    process.exit(0);
 }
 
-// Start the bot
-main().catch((error) => {
-    console.error('Failed to start bot:', error);
-    process.exit(1);
-}); 
+// Start the wallet emulator
+main(); 

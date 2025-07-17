@@ -1,7 +1,7 @@
 {
-  "name": "darklake-swap-bot",
+  "name": "darklake-gateway-wallet",
   "version": "1.0.0",
-  "description": "Standalone bot for running swap and settle operations on Darklake DEX",
+  "description": "Wallet emulator to test gateway",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
@@ -18,9 +18,10 @@
     "bs58": "^4.0.1",
     "buffer": "6.0.3",
     "circomlibjs": "^0.1.7",
-    "cron": "^3.1.6",
     "dotenv": "^16.3.1",
     "ffjavascript": "^0.3.0",
+    "@grpc/grpc-js": "^1.10.1",
+    "@grpc/proto-loader": "^0.7.10",
     "snarkjs": "^0.7.5"
   },
   "devDependencies": {
@@ -34,7 +35,7 @@
     "bot",
     "trading"
   ],
-  "author": "Darklake Bot",
+  "author": "Gatway test wallet",
   "license": "MIT",
   "packageManager": "pnpm@9.15.5+sha512.845196026aab1cc3f098a0474b64dfbab2afe7a1b4e91dd86895d8e4aa32a7a6d03049e2d0ad770bbe4de023a7122fb68c1a1d6e0d033c7076085f9d5d4800d4"
 }
