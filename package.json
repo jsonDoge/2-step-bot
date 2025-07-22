@@ -9,7 +9,7 @@
     "dev": "ts-node src/index.ts",
     "watch": "tsc --watch",
     "test-setup": "node test-setup.js",
-    "slash": "ts-node src/slash.ts",
+    "slash": "ts-node src/slash.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "=0.30.1",
