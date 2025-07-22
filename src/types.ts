@@ -7,12 +7,22 @@ export interface Token {
     symbol: string;
 }
 
-export interface BotConfig {
+export interface SlashConfig {
+    network: string;
+    orderOwner: PublicKey;
+    privateKeyBytes: string;
+    rpcUrl: string;
+}
+
+export interface Config {
     network: string;
     inputAmount: number;
     minOut: number;
     privateKeyBytes: string;
     rpcUrl: string;
+}
+
+export interface BotConfig extends Config {
     cronSchedule: string;
 }
 

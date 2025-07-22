@@ -250,7 +250,7 @@ export class SwapBot {
     }
 
     /**
-     * Fetches order account to get actual output
+     * Fetches order account to get actual output with retry logic
      */
     private async fetchOrderAccount(
         poolPubkey: PublicKey,
@@ -264,13 +264,33 @@ export class SwapBot {
             this.program.programId,
         );
 
-        const orderAccount = await this.program.account.order.fetch(orderPubkey);
+        const maxRetries = 3;
+        const delayMs = 10000; // 10 seconds
 
-        console.log('Order account:', orderAccount);
-        return {
-            dOut: orderAccount.dOut.toNumber(),
-            cMin: orderAccount.cMin,
-        };
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                console.log(`Fetching order account (attempt ${attempt}/${maxRetries})...`);
+                const orderAccount = await this.program.account.order.fetch(orderPubkey);
+
+                console.log('Order account:', orderAccount);
+                return {
+                    dOut: orderAccount.dOut.toNumber(),
+                    cMin: orderAccount.cMin,
+                };
+            } catch (error) {
+                console.log(`Attempt ${attempt} failed:`, error);
+                
+                if (attempt === maxRetries) {
+                    console.error(`Failed to fetch order account after ${maxRetries} attempts`);
+                    throw error;
+                }
+                
+                console.log(`Waiting ${delayMs / 1000} seconds before retry...`);
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+        }
+
+        throw new Error('Failed to fetch order account after all retries');
     }
 
     /**
